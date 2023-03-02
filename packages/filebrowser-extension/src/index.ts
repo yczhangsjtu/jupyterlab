@@ -49,8 +49,10 @@ import {
   downloadIcon,
   editIcon,
   fileIcon,
+  FilenameSearcher,
   folderIcon,
   IDisposableMenuItem,
+  IScore,
   linkIcon,
   markdownIcon,
   newFolderIcon,
@@ -66,6 +68,11 @@ import { ContextMenu } from '@lumino/widgets';
 
 const FILE_BROWSER_FACTORY = 'FileBrowser';
 const FILE_BROWSER_PLUGIN_ID = '@jupyterlab/filebrowser-extension:browser';
+
+/**
+ * The class name added to the filebrowser filterbox node.
+ */
+const FILTERBOX_CLASS = 'jp-FileBrowser-filterBox';
 
 /**
  * The command IDs used by the file browser plugin.
@@ -127,6 +134,8 @@ namespace CommandIDs {
     'filebrowser:toggle-navigate-to-current-directory';
 
   export const toggleLastModified = 'filebrowser:toggle-last-modified';
+
+  export const toggleFileSize = 'filebrowser:toggle-file-size';
 
   export const search = 'filebrowser:search';
 
@@ -206,7 +215,7 @@ const browser: JupyterFrontEndPlugin<void> = {
           const fileBrowserConfig = {
             navigateToCurrentDirectory: false,
             showLastModifiedColumn: true,
-            useFuzzyFilter: true,
+            showFileSizeColumn: false,
             showHiddenFiles: false,
             showFileCheckboxes: false
           };
@@ -395,7 +404,7 @@ const browserWidget: JupyterFrontEndPlugin<void> = {
     docManager: IDocumentManager,
     browser: IDefaultFileBrowser,
     factory: IFileBrowserFactory,
-    settings: ISettingRegistry,
+    settingRegistry: ISettingRegistry,
     toolbarRegistry: IToolbarWidgetRegistry,
     translator: ITranslator,
     labShell: ILabShell,
@@ -438,11 +447,33 @@ const browserWidget: JupyterFrontEndPlugin<void> = {
         new Uploader({ model: browser.model, translator })
     );
 
+    toolbarRegistry.addFactory(
+      FILE_BROWSER_FACTORY,
+      'fileNameSearcher',
+      (browser: FileBrowser) => {
+        const searcher = FilenameSearcher({
+          updateFilter: (
+            filterFn: (item: string) => Partial<IScore> | null,
+            query?: string
+          ) => {
+            browser.model.setFilter(value => {
+              return filterFn(value.name.toLowerCase());
+            });
+          },
+          useFuzzyFilter: true,
+          placeholder: trans.__('Filter files by name'),
+          forceRefresh: true
+        });
+        searcher.addClass(FILTERBOX_CLASS);
+        return searcher;
+      }
+    );
+
     setToolbar(
       browser,
       createToolbarFactory(
         toolbarRegistry,
-        settings,
+        settingRegistry,
         FILE_BROWSER_FACTORY,
         browserWidget.id,
         translator
@@ -510,7 +541,7 @@ const browserWidget: JupyterFrontEndPlugin<void> = {
       execute: () => {
         const value = !browser.navigateToCurrentDirectory;
         const key = 'navigateToCurrentDirectory';
-        return settings
+        return settingRegistry
           .set(FILE_BROWSER_PLUGIN_ID, key, value)
           .catch((reason: Error) => {
             console.error(`Failed to set navigateToCurrentDirectory setting`);
@@ -1197,7 +1228,23 @@ function addCommands(
         return settingRegistry
           .set(FILE_BROWSER_PLUGIN_ID, key, value)
           .catch((reason: Error) => {
-            console.error(`Failed to set showLastModifiedColumn setting`);
+            console.error(`Failed to set ${key} setting`);
+          });
+      }
+    }
+  });
+
+  commands.addCommand(CommandIDs.toggleFileSize, {
+    label: trans.__('Show File Size Column'),
+    isToggled: () => browser.showFileSizeColumn,
+    execute: () => {
+      const value = !browser.showFileSizeColumn;
+      const key = 'showFileSizeColumn';
+      if (settingRegistry) {
+        return settingRegistry
+          .set(FILE_BROWSER_PLUGIN_ID, key, value)
+          .catch((reason: Error) => {
+            console.error(`Failed to set ${key} setting`);
           });
       }
     }

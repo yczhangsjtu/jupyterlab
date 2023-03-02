@@ -34,7 +34,12 @@ import {
 import { ServerConnection } from '@jupyterlab/services';
 import { ISettingRegistry, SettingRegistry } from '@jupyterlab/settingregistry';
 import { ITranslator, TranslationBundle } from '@jupyterlab/translation';
-import { refreshIcon, runIcon, stopIcon } from '@jupyterlab/ui-components';
+import {
+  fastForwardIcon,
+  refreshIcon,
+  runIcon,
+  stopIcon
+} from '@jupyterlab/ui-components';
 import { find } from '@lumino/algorithm';
 import { JSONExt } from '@lumino/coreutils';
 import { IDisposable } from '@lumino/disposable';
@@ -150,11 +155,14 @@ const plugin: JupyterFrontEndPlugin<IMainMenu> = {
       await Private.loadSettingsMenu(
         registry,
         (aMenu: JupyterLabMenu) => {
-          menu.addMenu(aMenu, { rank: aMenu.rank });
+          menu.addMenu(aMenu, false, { rank: aMenu.rank });
         },
         options => MainMenu.generateMenu(commands, options, trans),
         translator
       );
+
+      // Trigger single update
+      menu.update();
     }
 
     // Only add quit button if the back-end supports it by checking page config.
@@ -640,7 +648,8 @@ export function createRunMenu(
         caption: trans.__('Restart Kernel and Run All')
       },
       trans
-    )
+    ),
+    icon: args => (args.toolbar ? fastForwardIcon : undefined)
   });
 }
 
